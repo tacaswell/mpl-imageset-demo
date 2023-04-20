@@ -1,0 +1,72 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools_scm>=7",
+]
+
+[project]
+name = "plotz"
+description = "A demo / test repository for Matplotlib development"
+license = {text = "BSD-3-Clause"}
+dynamic = ["version"]
+requires-python = ">=3.9"
+
+
+[tool.ruff]
+exclude = [
+    ".git",
+    "build",
+]
+ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D200",
+    "D202",
+    "D204",
+    "D205",
+    "D301",
+    "D400",
+    "D403",
+    "D404",
+    "E741",
+    "F841",
+]
+line-length = 88
+select = [
+    "D",
+    "E",
+    "F",
+    "W",
+]
+
+# The following error codes are not supported by ruff v0.0.240
+# They are planned and should be selected once implemented
+# even if they are deselected by default.
+# These are primarily whitespace/corrected by autoformatters (which we don't use).
+# See https://github.com/charliermarsh/ruff/issues/2402 for status on implementation
+external = [
+  "E122",
+  "E201",
+  "E202",
+  "E203",
+  "E221",
+  "E251",
+  "E261",
+  "E272",
+  "E302",
+  "E703",
+]
+
+target-version = "py39"
+
+[tool.ruff.pydocstyle]
+convention = "numpy"
+
+
+[tool.mypy]
+ignore_missing_imports = true
