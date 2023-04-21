@@ -2,7 +2,7 @@ test_basic/image.png:0:0.0
 test_basic/line.pdf:0:0.0
 test_basic/line.png:0:0.0
 test_basic/line.svg:0:0.0
-test_other/hist.png:0:0.0
+test_other/hist.png:1:1682036434.3772511
 test_other/scatter.pdf:0:0.0
 test_other/scatter.png:0:0.0
 test_other/scatter.svg:0:0.0

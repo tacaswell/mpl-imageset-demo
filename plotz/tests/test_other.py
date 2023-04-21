@@ -14,4 +14,4 @@ def test_scatter():
 def test_hist():
     np.random.seed(19680801)
     fig, ax = plt.subplots()
-    ax.hist(np.random.randn(1000))
+    ax.hist(np.random.randn(100))
