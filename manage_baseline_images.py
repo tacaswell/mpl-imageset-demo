@@ -1,74 +1,107 @@
-import string
+import argparse
+import json
+from pathlib import Path
+import sys
 import time
-import random
-import subprocess
+
+import matplotlib.testing.decorators as mtd
 
 
-def generate_initial():
-    write_data(
-        {
-            f: {"rev": 0, "ts": time.time()}
-            for let in string.ascii_letters
-            for f in [f"{let}.{ext}" for ext in ["svg", "png", "pdf"]]
-        }
+def _mod_to_path(libpath, mod):
+    return Path(libpath) / Path(*mod.split("."))
+
+
+def _find_imagelist(libpath, mod, imagelist_name="image_list.txt"):
+    return Path(libpath) / Path(*mod.split(".")[:-1]) / imagelist_name
+
+
+def _add(args):
+    image_list_path = _find_imagelist(args.libpath, args.module)
+    data = mtd._load_imagelist(image_list_path)
+    fname = Path(args.module.split(".")[-1]) / args.fname
+    if fname in data:
+        raise RuntimeError("Trying to add as existing file, did you mean to use 'rev'?")
+    data[fname] = {"rev": 0, "ts": time.time()}
+    mtd._write_imagelist(data, target_file=image_list_path)
+
+
+def _rev(args):
+    image_list_path = _find_imagelist(args.libpath, args.module)
+    data = mtd._load_imagelist(image_list_path)
+    fname = Path(args.module.split(".")[-1]) / args.fname
+    if fname not in data:
+        raise RuntimeError(
+            "Trying to rev a non-existing file, did you mean to use 'add'?"
+        )
+    data[fname]["rev"] += 1
+    data[fname]["ts"] = time.time()
+    mtd._write_imagelist(data, target_file=image_list_path)
+
+
+def _validate(args):
+    image_list_path = _find_imagelist(args.libpath, args.package + ".a")
+    data = mtd._load_blame(image_list_path)
+    json_path = (
+        Path(args.baseline_path)
+        / Path(*args.package.split("."))
+        / "baseline_images"
+        / "metadata.json"
+    )
+    with open(json_path) as fin:
+        md = {Path(k): v for k, v in json.load(fin).items()}
+
+    if extra := set(md) ^ set(data):
+        # TODO good error messages about where the extra files are
+        print(f"{extra=}")
+        sys.exit(1)
+
+    mismatch = set()
+    for k in md:
+        if md[k]["sha"] != data[k]["sha"]:
+            mismatch.add(k)
+    if mismatch:
+        print(f"{mismatch=}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    # create the top-level parser
+    parser = argparse.ArgumentParser(prog="manage baseline images")
+    parser.add_argument(
+        "--libpath",
+        help="Relative path to package source.",
+        default="",
+        required=False,
     )
 
+    subparsers = parser.add_subparsers(help="sub-command help", dest="cmd")
 
-def load_data(*, target_file="image_list.txt"):
-    ret = []
-    with open(target_file) as fin:
-        for ln in fin:
-            fname, rev, ts = ln.strip().split(":")
-            ret.append([fname, int(rev), float(ts)])
-
-    return {fname: {"rev": rev, "ts": ts} for fname, rev, ts in ret}
-
-
-def load_blame(*, target_file="image_list.txt"):
-    blame_result = subprocess.run(
-        ["git", "blame", "-l", "--line-porcelain", "image_list.txt"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    # create the parser for the "rev" command
+    parser_rev = subparsers.add_parser("rev", help="Version rev a test file.")
+    parser_rev.add_argument("module", type=str, help="The dotted name of the module.")
+    parser_rev.add_argument(
+        "fname", type=str, help="The (relative) name of the file to version rev."
     )
 
-    ret = {}
+    # create the parser for the "add" command
+    parser_add = subparsers.add_parser("add", help="Add a new baseline image.")
+    parser_add.add_argument("module", type=str, help="The dotted name of the module.")
+    parser_add.add_argument(
+        "fname", type=str, help="The (relative) name of the file to version rev."
+    )
 
-    cur_line = {}
+    # create the parser for the "add" command
+    parser_add = subparsers.add_parser("validate", help="Check if the baseline dir .")
+    parser_add.add_argument(
+        "package", type=str, help="The dotted name of the test (sub-)package."
+    )
+    parser_add.add_argument(
+        "baseline_path",
+        type=str,
+        help="The dotted name of the test (sub-)package.",
+    )
 
-    for ln in blame_result.stdout.decode().split("\n"):
-        if not ln:
-            continue
-        print(ln)
+    # parse some argument lists
+    args = parser.parse_args()
 
-        if ln[0] != "\t":
-            if len(cur_line) == 0:
-                sha, *_ = ln.split(" ")
-                cur_line["sha"] = sha
-            else:
-                key, _, val = ln.partition(" ")
-                cur_line[key] = val
-        else:
-            fname, rev, ts = ln[1:].strip().split(":")
-            cur_line["rev"] = int(rev)
-            cur_line["ts"] = float(ts)
-            ret[fname] = cur_line
-            cur_line = {}
-    return ret
-
-
-def write_data(data, *, target_file="image_list.txt"):
-    with open(target_file, "w") as fout:
-        for fname, v in sorted(data.items()):
-            fout.write(f"{fname}:{v['rev']}:{v['ts']}\n")
-
-
-def rev_fname(fname, *, target_file="image_list.txt"):
-    data = load_data()
-    old_rev = data[fname]["rev"]
-    data[fname] = {"rev": old_rev + 1, "ts": time.time()}
-    write_data(data)
-
-
-for k in random.choices(string.ascii_letters, k=5):
-    ext = random.choice(["svg", "png", "pdf"])
-    rev_fname(f"{k}.{ext}")
+    {"add": _add, "rev": _rev, "validate": _validate}[args.cmd](args)
